@@ -1,16 +1,16 @@
-name: docker-push
+name: Docker
 
 on:
   push:
-    # tags:
-    #   - v*
+    tags:
+      - v*
 
 env:
-  REPOSITORY_URL: ghcr.io
   SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
 
 jobs:
   test:
+    name: Test
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
@@ -34,12 +34,13 @@ jobs:
           steps: ${{ toJson(steps) }}
         if: always()
 
-  push:
+  build:
+    name: Build and Push
     needs: test
     runs-on: ubuntu-latest
-    if: github.event_name == 'push'
     env:
-      IMAGE_NAME: satterly/hey
+      REPOSITORY_URL: ghcr.io
+      IMAGE_NAME: ${{ github.repository_owner }}/hey
     steps:
       - name: Checkout
         uses: actions/checkout@v2
@@ -55,17 +56,15 @@ jobs:
           -t $REPOSITORY_URL/$IMAGE_NAME:$(cat VERSION)
           -t $REPOSITORY_URL/$IMAGE_NAME:${{ steps.vars.outputs.SHORT_COMMIT_ID }}
           -t $REPOSITORY_URL/$IMAGE_NAME:latest .
-      - uses: docker/login-action@v1
+      - name: Docker Login
+        uses: docker/login-action@v1
         with:
           registry: ${{ env.REPOSITORY_URL }}
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
       - name: Publish Image
         id: docker-push
-        run: |
-          docker push $REPOSITORY_URL/$IMAGE_NAME:$(cat VERSION)
-          docker push $REPOSITORY_URL/$IMAGE_NAME:${{ steps.vars.outputs.SHORT_COMMIT_ID }}
-          docker push $REPOSITORY_URL/$IMAGE_NAME:latest
+        run: docker push --all-tags $REPOSITORY_URL/$IMAGE_NAME
 
       - uses: act10ns/slack@v1
         with: 

@@ -1,4 +1,4 @@
-[![docker-push](https://github.com/satterly/hey/actions/workflows/build.yml/badge.svg?branch=master)](https://github.com/satterly/hey/actions/workflows/build.yml)
+[![docker-push](https://github.com/act10ns/hey/actions/workflows/docker.yml/badge.svg?branch=master)](https://github.com/act10ns/hey/actions/workflows/docker.yml)
 
 # `hey` `wait-for` Docker container
 
@@ -66,7 +66,6 @@ Using them together you can wait-for a service to become available
 before running performance tests:
 
     $ docker run -t --rm --network=host hey sh -c "/wait-for host.docker.internal:8080 -- hey -z 2s http://host.docker.internal:8080"
-
 
 
 ## License
