@@ -1,0 +1,74 @@
+name: docker-push
+
+on:
+  push:
+    # tags:
+    #   - v*
+
+env:
+  REPOSITORY_URL: ghcr.io
+  SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - name: Docker Lint
+        id: docker-lint
+        run: |
+          docker run --rm -i ghcr.io/hadolint/hadolint hadolint \
+          --ignore DL3008 \
+          - < Dockerfile
+      - name: Run tests
+        id: smoketest
+        run: |
+          docker build -t hey .
+          docker run hey -z 2s https://www.google.com
+          docker run hey sh -c '/wait-for www.google.com:443 -- echo ready'
+          docker run hey sh -c '/wait-for www.google.com:443 -- hey -z 2s https://www.google.com'
+
+      - uses: act10ns/slack@v1
+        with: 
+          status: ${{ job.status }}
+          steps: ${{ toJson(steps) }}
+        if: always()
+
+  push:
+    needs: test
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push'
+    env:
+      IMAGE_NAME: satterly/hey
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+      - name: Variables
+        id: vars
+        run: echo "::set-output name=SHORT_COMMIT_ID::$(git rev-parse --short HEAD)"
+      - name: Build Image
+        id: docker-build
+        run: >-
+          docker build
+          --build-arg VERSION=$(cat VERSION)
+          -t $IMAGE_NAME
+          -t $REPOSITORY_URL/$IMAGE_NAME:$(cat VERSION)
+          -t $REPOSITORY_URL/$IMAGE_NAME:${{ steps.vars.outputs.SHORT_COMMIT_ID }}
+          -t $REPOSITORY_URL/$IMAGE_NAME:latest .
+      - uses: docker/login-action@v1
+        with:
+          registry: ${{ env.REPOSITORY_URL }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Publish Image
+        id: docker-push
+        run: |
+          docker push $REPOSITORY_URL/$IMAGE_NAME:$(cat VERSION)
+          docker push $REPOSITORY_URL/$IMAGE_NAME:${{ steps.vars.outputs.SHORT_COMMIT_ID }}
+          docker push $REPOSITORY_URL/$IMAGE_NAME:latest
+
+      - uses: act10ns/slack@v1
+        with: 
+          status: ${{ job.status }}
+          steps: ${{ toJson(steps) }}
+        if: always()
